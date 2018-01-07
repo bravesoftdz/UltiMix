@@ -41,7 +41,7 @@ uses GlobalConfig,
 
 {==============================================================================}
 const
- SYSCALL_SWI_NUMBER = $00000069;  { Syscall/SWInterrupt Test }
+ SYSCALL_SWI_NUMBER = $00000045;  { @@ Syscall/SWInterrupt Test }
 
  DEMO_READY_DELAY = 3000;
  DEMO_STAGE_DELAY = 500;
@@ -166,19 +166,17 @@ implementation
 procedure TestSysHandler(Request:PSystemCallRequest);
 begin
  { Log to let someone know this succeeded }
- LoggingOutput('Test System Handler function called with (#,p1,p2,p3) = ('
-   + IntToStr(Request^.Number) + ', '
-   + IntToStr(Request^.Param1) + ', '
-   + IntToStr(Request^.Param2) + ', '
-   + IntToStr(Request^.Param3) + ') ');
- { Results to User @@FIXME:NYI@@ }
+ LoggingOutput('TestSysHandler proc called');
+ { Result(s) To User }
+ (PLongWord(Request^.Param1))^ := 69;
+
 end;
 
 {==============================================================================}
 
 function TrySystemCall:LongWord;
 var
-  i1,i2,i3: UInt;
+  i1,i2,i3: LongWord;
 begin
  i1:=1;
  i2:=2;
@@ -188,10 +186,10 @@ begin
  LoggingOutput('RegisterSystemCall() -> ' + IntToStr(Result));
  if (Result <> 0) then exit;
  LoggingOutput('About to try test system call ');
-
- SystemCall(SYSCALL_SWI_NUMBER,i1,i2,i3);
+ SystemCall(SYSCALL_SWI_NUMBER,(PtrUInt(@i1)),(PtrUInt(@i2)),(PtrUInt(@i3)));
  LoggingOutput('Test system call returned');
- LoggingOutput(' ');
+ LoggingOutput('param1 is ' + IntToStr(i1));
+ LoggingOutput('  ');
 
 end;
 
@@ -353,7 +351,7 @@ begin
   ShowIntroduction;
   
   Sleep(DEMO_STAGE_DELAY);
- 
+(* 
   {Show blinker}
   ShowBlinker;
  
@@ -382,7 +380,7 @@ begin
   ShowFiles;
   
   Sleep(DEMO_STAGE_DELAY);
- 
+*)
   {Show completed}
   ShowCompleted(Rerun);
   
@@ -1266,10 +1264,7 @@ begin
     Result:='Welcome to Ultibo...';
    end; 
   MESSAGE_ID_WELCOME:begin
-    Result:='This demonstration will show some of the features and capabilities of Ultibo core, the entire demo takes about 3 minutes'
-            + ' and then you can explore other features further on your own. We''ll cover common features like the console, memory, threading,'
-            + ' dates and times as well as files and folders. Then we''ll move on to have a look at the network if you have one connected and some'
-            + ' devices like USB.';
+    Result:='This is a test.  This is only a test.  If this was a real demo, it would be _much_ more interesting!';
    end;
   MESSAGE_ID_INTRO:begin
     Result:='First some basics, this is a ' + GetBoardDescription + ' with ' + GetBoardTotalMemory  + ' of memory and ' + GetBoardCPUs + ' available. ' + MESSAGE_DOUBLEEND
@@ -1280,7 +1275,7 @@ begin
             + ' Pay no attention to the man behind the curtain! ' + MESSAGE_LINEEND;
    end;   
   MESSAGE_ID_INTRO_DONE:begin
-    Result:='Let''s move on with the demo, we''ll start with something simple...';
+    Result:='Let''s move on...';
    end;   
   MESSAGE_ID_BLINKER:begin
     Result:='By using standard GPIO functions turning an LED on or off is quite simple, we can use the activity LED on the board to demonstrate. ' + MESSAGE_DOUBLEEND;
@@ -1419,9 +1414,9 @@ begin
  case Id of
   MESSAGE_ID_NONE:Result:=0;
   MESSAGE_ID_BANNER:Result:=200; {Slow motion delay not message delay}
-  MESSAGE_ID_WELCOME:Result:=25000;
-  MESSAGE_ID_INTRO:Result:=15000;
-  MESSAGE_ID_INTRO_DONE:Result:=4000;
+  MESSAGE_ID_WELCOME:Result:=2500;
+  MESSAGE_ID_INTRO:Result:=1500;
+  MESSAGE_ID_INTRO_DONE:Result:=500;
   MESSAGE_ID_BLINKER:Result:=1000;
   MESSAGE_ID_BLINKER_DONE:Result:=4000;
   MESSAGE_ID_CONSOLE:Result:=4000;
