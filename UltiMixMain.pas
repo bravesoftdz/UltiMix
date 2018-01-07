@@ -41,6 +41,8 @@ uses GlobalConfig,
 
 {==============================================================================}
 const
+ SYSCALL_SWI_NUMBER = $00000069;  { Syscall/SWInterrupt Test }
+
  DEMO_READY_DELAY = 3000;
  DEMO_STAGE_DELAY = 500;
  DEMO_THREAD_DELAY = 150;
@@ -123,6 +125,7 @@ var
 
 function InitDemo:Boolean;
 function RunDemo:Boolean;
+function TrySystemCall:LongWord; // @@KenD@@
      
 function ShowWelcome:Boolean;
 function ShowIntroduction:Boolean;
@@ -158,6 +161,42 @@ function ConsoleWriteSlowMotion(Handle:TWindowHandle;X,Y:LongWord;const Text:Str
 {==============================================================================}
      
 implementation
+
+{==============================================================================}
+procedure TestSysHandler(Request:PSystemCallRequest);
+begin
+ { Log to let someone know this succeeded }
+ LoggingOutput('Test System Handler function called with (#,p1,p2,p3) = ('
+   + IntToStr(Request^.Number) + ', '
+   + IntToStr(Request^.Param1) + ', '
+   + IntToStr(Request^.Param2) + ', '
+   + IntToStr(Request^.Param3) + ') ');
+ { Results to User @@FIXME:NYI@@ }
+end;
+
+{==============================================================================}
+
+function TrySystemCall:LongWord;
+var
+  i1,i2,i3: UInt;
+begin
+ i1:=1;
+ i2:=2;
+ i3:=3;
+
+ Result:=RegisterSystemCall(SYSCALL_SWI_NUMBER,@TestSysHandler);
+ LoggingOutput('RegisterSystemCall() -> ' + IntToStr(Result));
+ if (Result <> 0) then exit;
+ LoggingOutput('About to try test system call ');
+
+ SystemCall(SYSCALL_SWI_NUMBER,i1,i2,i3);
+ LoggingOutput('Test system call returned');
+ LoggingOutput(' ');
+
+end;
+
+{==============================================================================}
+
 
 {==============================================================================}
 {==============================================================================}
@@ -1236,7 +1275,9 @@ begin
     Result:='First some basics, this is a ' + GetBoardDescription + ' with ' + GetBoardTotalMemory  + ' of memory and ' + GetBoardCPUs + ' available. ' + MESSAGE_DOUBLEEND
             + ' The current temperature of the system on chip is about ' + GetBoardTemperature + ' degrees. ' + MESSAGE_LINEEND
             + ' The clock speed of the CPU is ' + GetBoardCPUClock + '. ' + MESSAGE_LINEEND
-            + ' After loading this demo there is ' + GetBoardAvailableMemory + ' of available memory remaining.';
+            + ' After loading this demo there is ' + GetBoardAvailableMemory + ' of available memory remaining.' + MESSAGE_LINEEND
+            + MESSAGE_LINEEND
+            + ' Pay no attention to the man behind the curtain! ' + MESSAGE_LINEEND;
    end;   
   MESSAGE_ID_INTRO_DONE:begin
     Result:='Let''s move on with the demo, we''ll start with something simple...';

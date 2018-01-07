@@ -38,6 +38,9 @@ begin
    LoggingConsoleDeviceAdd(ConsoleDeviceGetDefault);
    LoggingDeviceSetDefault(LoggingDeviceFindByType(LOGGING_TYPE_CONSOLE));
    LoggingOutput('This is a log window, try connecting a USB device');
+
+   { Try adding a system call }
+   TrySystemCall;
   end;
   
  {Halt the Main thread if it ever returns here}
