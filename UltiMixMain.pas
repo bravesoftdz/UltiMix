@@ -39,6 +39,7 @@ uses GlobalConfig,
      RemoteShell,     
      WebStatus;
 
+
 {==============================================================================}
 const
 
@@ -93,10 +94,12 @@ const
  MESSAGE_ID_ULTIBO_ORG                = 102;
 
 {==============================================================================}
- TEST_SWI_NUMBER   = $00000045;  { @@ Syscall/SWInterrupt Test }
+ TEST_SWI_NUMBER   = $00000045;  { @@ For Syscall/SWI Test }
  UNUSED_SWI_NUMBER = $00000046;  { Unused SWI ]
 
-{RPI3_VECTOR_TABLE_BASE  = $00001000;      }
+ { From PlatformRPi3 }
+ RPI3_VECTOR_TABLE_BASE  = $00001000;
+ RPI3_SWI_COUNT          = 256;
  
 {==============================================================================}
 type
@@ -123,18 +126,20 @@ type
  end;
 
 {@@KenD@@}
-TSWIHandler = function(Number:LongWord;Param1,Param2,Param3:PtrUInt) CallResult PtrUInt;
-PTSWIHandler = ^TSWIHandler;
+TSWIHandler = function(Number:LongWord;Param1,Param2,Param3:PtrUInt) : PtrUInt;
+PSWIHandler = ^TSWIHandler;
  
 {==============================================================================}
 var
  HTTPListener:THTTPListener;
 
 {==============================================================================}
+ SWIHandlers:array[0..(RPI3_SWI_COUNT - 1)] of PSWIHandler;
+{==============================================================================}
 
 function InitDemo:Boolean;
 function RunDemo:Boolean;
-function TrySystemCall:LongWord; // @@KenD@@
+procedure TrySystemCall; // @@KenD
      
 function ShowWelcome:Boolean;
 function ShowIntroduction:Boolean;
@@ -167,19 +172,26 @@ function ConsoleWriteMessage(Handle:TWindowHandle;const Text:String):Boolean;
 function ConsoleWriteSlowMotion(Handle:TWindowHandle;X,Y:LongWord;const Text:String;Delay:LongWord):Boolean;
 
 {==============================================================================}
-SWIHandlers:array[0..RPI3_SWI_COUNT - 1] of PTSWIHandler;
-{==============================================================================}
 {==============================================================================}
 
 implementation
 
 {==============================================================================}
-function DefaultSWIHandler(Number:LongWord;Param1,Param2,Param3:PtrUInt)
-         CallResult PtrUInt; assembler; nostackframe;
+function DefaultSWIHandler(Number:LongWord;Param1,Param2,Param3:PtrUInt): PtrUInt; assembler; nostackframe;
 asm
    mov r0, #ERROR_INVALID_FUNCTION
    // bx lr
 end;
+
+
+procedure SetSWIVector; assembler; nostackframe;
+asm
+    mov r0, #RPI3_VECTOR_TABLE_BASE
+    add r0, r0, #VECTOR_TABLE_ENTRY_ARM_SWI
+    mov r1, SWIHandlers
+    str r1, [r0]
+end;
+
 
 procedure InitSWIHandlers;
 var
@@ -189,10 +201,9 @@ begin
   begin
    SWIHandlers[Idx]:= @DefaultSWIHandler;
   end;
+  SetSWIVector;
 end;
-
-function SWICall(Number:LongWord;Param1,Param2,Param3:PtrUInt)
-                 CallResult PtrUInt; assembler; nostackframe;
+function SWICall(Number:LongWord;Param1,Param2,Param3:PtrUInt): PtrUInt; assembler; nostackframe;
 asm
  //Perform a Supervisor Call
  //Number will be passed in R0; result in r0
@@ -202,41 +213,41 @@ asm
  svc #0
 end;
 
-procedure HandleSWI; ; assembler; nostackframe;
-// SysCall# in R0; R1/R2/R3 = params
+procedure HandleSWI; assembler; nostackframe;
+{ SysCall# in R0; R1/R2/R3 = params }
 asm
   // range check
-  cmp    r0 #0
+  cmp    r0, #0
   movlt  r0, #ERROR_NOT_ASSIGNED
-  movlt  pc, r14_svc
+  movlt  pc, lr
   cmp    r0, #RPI3_SWI_COUNT
   movge  r0, #ERROR_NOT_ASSIGNED
-  movge  pc, r14_svc
+  movge  pc, lr
   // within range
-  stmfd  sp!{r4-r12,r14}  // save context
+  stmia  sp!, {r4-r12,r14}  // save context
   mov    r4, SWIHandlers
-  add    r4, r0, lsl #2 // assume 4 byte addresses
-  bl     [r4]
-  ldmfd   sp!{r4-r12,pc}^  // restore context
-//  mov pc, r14_svc
+  add    r4, r4, r0, lsl #2 // assume 4 byte addresses
+  ldr    r4, [r4]
+  bl     r4
+  ldmia  sp!, {r4-r12,r14}^  // restore context
+  mov pc, lr
 end;
 {==============================================================================}
-procedure TestSWIHandler(Number:LongWord;Param1,Param2,Param3:PtrUInt)
-                        CallResult PtrUInt;
+function TestSWIHandler(Number:LongWord;Param1,Param2,Param3:PtrUInt): PtrUInt;
 begin
  { Log to let someone know this succeeded }
  LoggingOutput('TestSysHandler proc called');
- LoggingOutput(     ' p1=', IntToStr(Param1)
-                 + ', p2=', IntToStr(Param2)
-                 + ', p3=', IntToStr(Param3) );
+ LoggingOutput(     ' p1='+ IntToStr(Param1)
+                 + ', p2='+ IntToStr(Param2)
+                 + ', p3='+ IntToStr(Param3) );
  LoggingOutput('TestSysHandler proc returning');
  { Result(s) To User }
- Return := ERROR_SUCCESS; // a.k.a. NO_ERROR
+ Result := ERROR_SUCCESS; // a.k.a. NO_ERROR
 end;
 
 {==============================================================================}
 
-function TrySystemCall:LongWord;
+procedure TrySystemCall;
 var
   i1,i2,i3: Integer;
   callResult : Integer;
@@ -254,10 +265,10 @@ begin
  LoggingOutput('Test SWI call returned' + IntToStr(callResult));
  LoggingOutput('  ');
  LoggingOutput('About to make BOGUS SWI call ');
- callResult := SWICall(UNUSED_SWI_NUMBER,(PtrUInt(@i1)),(PtrUInt(@i2)),(PtrUInt(@i3)));
+ callResult := SWICall(UNUSED_SWI_NUMBER,(Integer(@i1)),(PtrUInt(@i2)),(PtrUInt(@i3)));
  LoggingOutput('Default SWI returned' + IntToStr(callResult));
  LoggingOutput('  ');
- LoggingOutput('That's all folks!!');
+ LoggingOutput('That''s all folks!!');
 end;
 
 {==============================================================================}
