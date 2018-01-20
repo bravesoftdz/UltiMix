@@ -14,7 +14,7 @@ uses GlobalConfig,
      SysUtils,
      Classes,
      Ultibo,
-     UltiboClasses,
+{     UltiboClasses,      }
      UltiboUtils,
      Winsock2,
      HeapManager,
@@ -180,7 +180,7 @@ implementation
 function DefaultSWIHandler(Number:LongWord;Param1,Param2,Param3:PtrUInt): PtrUInt; assembler; nostackframe;
 asm
    mov r0, #ERROR_INVALID_FUNCTION
-   // bx lr
+   // mov pc, lr
 end;
 
 
@@ -203,6 +203,7 @@ begin
   end;
   SetSWIVector;
 end;
+
 function SWICall(Number:LongWord;Param1,Param2,Param3:PtrUInt): PtrUInt; assembler; nostackframe;
 asm
  //Perform a Supervisor Call
@@ -236,7 +237,7 @@ end;
 function TestSWIHandler(Number:LongWord;Param1,Param2,Param3:PtrUInt): PtrUInt;
 begin
  { Log to let someone know this succeeded }
- LoggingOutput('TestSysHandler proc called');
+ LoggingOutput('TestSysHandler proc ' + IntToStr(Number) + ' called');
  LoggingOutput(     ' p1='+ IntToStr(Param1)
                  + ', p2='+ IntToStr(Param2)
                  + ', p3='+ IntToStr(Param3) );
@@ -249,23 +250,19 @@ end;
 
 procedure TrySystemCall;
 var
-  i1,i2,i3: Integer;
   callResult : Integer;
 begin
- i1:=1;
- i2:=2;
- i3:=3;
 
  InitSWIHandlers;
 // Result:=RegisterSystemCall(SYSCALL_SWI_NUMBER,@TestSWIHandler);
  SWIHandlers[TEST_SWI_NUMBER] := @TestSWIHandler;
 
  LoggingOutput('About to try test SWI call ');
- callResult := SWICall(TEST_SWI_NUMBER,(PtrUInt(@i1)),(PtrUInt(@i2)),(PtrUInt(@i3)));
+ callResult := SWICall(TEST_SWI_NUMBER,1,2,3);
  LoggingOutput('Test SWI call returned' + IntToStr(callResult));
  LoggingOutput('  ');
  LoggingOutput('About to make BOGUS SWI call ');
- callResult := SWICall(UNUSED_SWI_NUMBER,(Integer(@i1)),(PtrUInt(@i2)),(PtrUInt(@i3)));
+ callResult := SWICall(UNUSED_SWI_NUMBER,1,2,3);
  LoggingOutput('Default SWI returned' + IntToStr(callResult));
  LoggingOutput('  ');
  LoggingOutput('That''s all folks!!');
