@@ -21,7 +21,7 @@ uses
  ConsoleShell;
  
 begin
- {Initialize ULtiMix3}
+ {Initialize UltiMix3}
  if InitDemo then
   begin
    {Run the Demo}

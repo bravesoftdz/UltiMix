@@ -41,10 +41,9 @@ uses GlobalConfig,
 
 {==============================================================================}
 const
- SYSCALL_SWI_NUMBER = $00000045;  { @@ Syscall/SWInterrupt Test }
 
- DEMO_READY_DELAY = 3000;
- DEMO_STAGE_DELAY = 500;
+ DEMO_READY_DELAY = 1000;
+ DEMO_STAGE_DELAY = 100;
  DEMO_THREAD_DELAY = 150;
  DEMO_SCROLL_DELAY = 50;
  DEMO_REFRESH_DELAY = 250;
@@ -92,6 +91,12 @@ const
  MESSAGE_ID_COMPLETED_DONE            = 100;
  MESSAGE_ID_ULTIBO                    = 101;
  MESSAGE_ID_ULTIBO_ORG                = 102;
+
+{==============================================================================}
+ TEST_SWI_NUMBER   = $00000045;  { @@ Syscall/SWInterrupt Test }
+ UNUSED_SWI_NUMBER = $00000046;  { Unused SWI ]
+
+{RPI3_VECTOR_TABLE_BASE  = $00001000;      }
  
 {==============================================================================}
 type
@@ -115,7 +120,11 @@ type
   FWindowHandle:TWindowHandle;
  public
   procedure Execute; override;
- end; 
+ end;
+
+{@@KenD@@}
+TSWIHandler = function(Number:LongWord;Param1,Param2,Param3:PtrUInt) CallResult PtrUInt;
+PTSWIHandler = ^TSWIHandler;
  
 {==============================================================================}
 var
@@ -158,39 +167,97 @@ function ConsoleWriteMessage(Handle:TWindowHandle;const Text:String):Boolean;
 function ConsoleWriteSlowMotion(Handle:TWindowHandle;X,Y:LongWord;const Text:String;Delay:LongWord):Boolean;
 
 {==============================================================================}
+SWIHandlers:array[0..RPI3_SWI_COUNT - 1] of PTSWIHandler;
 {==============================================================================}
-     
+{==============================================================================}
+
 implementation
 
 {==============================================================================}
-procedure TestSysHandler(Request:PSystemCallRequest);
+function DefaultSWIHandler(Number:LongWord;Param1,Param2,Param3:PtrUInt)
+         CallResult PtrUInt; assembler; nostackframe;
+asm
+   mov r0, #ERROR_INVALID_FUNCTION
+   // bx lr
+end;
+
+procedure InitSWIHandlers;
+var
+ Idx: Integer;
+begin
+ for Idx := 0 to (RPI3_SWI_COUNT - 1) do
+  begin
+   SWIHandlers[Idx]:= @DefaultSWIHandler;
+  end;
+end;
+
+function SWICall(Number:LongWord;Param1,Param2,Param3:PtrUInt)
+                 CallResult PtrUInt; assembler; nostackframe;
+asm
+ //Perform a Supervisor Call
+ //Number will be passed in R0; result in r0
+ //Param1 will be passed in R1
+ //Param2 will be passed in R2
+ //Param3 will be passed in R3
+ svc #0
+end;
+
+procedure HandleSWI; ; assembler; nostackframe;
+// SysCall# in R0; R1/R2/R3 = params
+asm
+  // range check
+  cmp    r0 #0
+  movlt  r0, #ERROR_NOT_ASSIGNED
+  movlt  pc, r14_svc
+  cmp    r0, #RPI3_SWI_COUNT
+  movge  r0, #ERROR_NOT_ASSIGNED
+  movge  pc, r14_svc
+  // within range
+  stmfd  sp!{r4-r12,r14}  // save context
+  mov    r4, SWIHandlers
+  add    r4, r0, lsl #2 // assume 4 byte addresses
+  bl     [r4]
+  ldmfd   sp!{r4-r12,pc}^  // restore context
+//  mov pc, r14_svc
+end;
+{==============================================================================}
+procedure TestSWIHandler(Number:LongWord;Param1,Param2,Param3:PtrUInt)
+                        CallResult PtrUInt;
 begin
  { Log to let someone know this succeeded }
  LoggingOutput('TestSysHandler proc called');
+ LoggingOutput(     ' p1=', IntToStr(Param1)
+                 + ', p2=', IntToStr(Param2)
+                 + ', p3=', IntToStr(Param3) );
+ LoggingOutput('TestSysHandler proc returning');
  { Result(s) To User }
- (PLongWord(Request^.Param1))^ := 69;
-
+ Return := ERROR_SUCCESS; // a.k.a. NO_ERROR
 end;
 
 {==============================================================================}
 
 function TrySystemCall:LongWord;
 var
-  i1,i2,i3: LongWord;
+  i1,i2,i3: Integer;
+  callResult : Integer;
 begin
  i1:=1;
  i2:=2;
  i3:=3;
 
- Result:=RegisterSystemCall(SYSCALL_SWI_NUMBER,@TestSysHandler);
- LoggingOutput('RegisterSystemCall() -> ' + IntToStr(Result));
- if (Result <> 0) then exit;
- LoggingOutput('About to try test system call ');
- SystemCall(SYSCALL_SWI_NUMBER,(PtrUInt(@i1)),(PtrUInt(@i2)),(PtrUInt(@i3)));
- LoggingOutput('Test system call returned');
- LoggingOutput('param1 is ' + IntToStr(i1));
- LoggingOutput('  ');
+ InitSWIHandlers;
+// Result:=RegisterSystemCall(SYSCALL_SWI_NUMBER,@TestSWIHandler);
+ SWIHandlers[TEST_SWI_NUMBER] := @TestSWIHandler;
 
+ LoggingOutput('About to try test SWI call ');
+ callResult := SWICall(TEST_SWI_NUMBER,(PtrUInt(@i1)),(PtrUInt(@i2)),(PtrUInt(@i3)));
+ LoggingOutput('Test SWI call returned' + IntToStr(callResult));
+ LoggingOutput('  ');
+ LoggingOutput('About to make BOGUS SWI call ');
+ callResult := SWICall(UNUSED_SWI_NUMBER,(PtrUInt(@i1)),(PtrUInt(@i2)),(PtrUInt(@i3)));
+ LoggingOutput('Default SWI returned' + IntToStr(callResult));
+ LoggingOutput('  ');
+ LoggingOutput('That's all folks!!');
 end;
 
 {==============================================================================}
