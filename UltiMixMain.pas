@@ -180,7 +180,30 @@ implementation
 function DefaultSWIHandler(Number:LongWord;Param1,Param2,Param3:PtrUInt): PtrUInt; assembler; nostackframe;
 asm
    mov r0, #ERROR_INVALID_FUNCTION
-   // mov pc, lr
+   mov pc, lr
+end;
+
+
+procedure HandleSWI; assembler; nostackframe;
+{ SysCall# in R0; R1/R2/R3 = params }
+asm
+  // range check
+  cmp    r0, #0
+  blt    .LfailedRangeCheck
+  cmp    r0, #RPI3_SWI_COUNT
+  bge    .LfailedRangeCheck
+  // within range
+  stmia  sp!, {r4-r12,r14}  // save context
+  mov    r4, SWIHandlers
+  // index assumes 4 byte addresses
+  add    r4, r4, r0, lsl #2
+  ldr    r4, [r4]
+  bl     r4
+  ldmia  sp!, {r4-r12,r14}^  // restore context
+  mov pc, lr
+.LfailedRangeCheck:
+  mov  r0, #ERROR_NOT_ASSIGNED
+  mov  pc, lr
 end;
 
 
@@ -188,7 +211,7 @@ procedure SetSWIVector; assembler; nostackframe;
 asm
     mov r0, #RPI3_VECTOR_TABLE_BASE
     add r0, r0, #VECTOR_TABLE_ENTRY_ARM_SWI
-    mov r1, SWIHandlers
+    mov r1, HandleSWI
     str r1, [r0]
 end;
 
@@ -214,25 +237,7 @@ asm
  svc #0
 end;
 
-procedure HandleSWI; assembler; nostackframe;
-{ SysCall# in R0; R1/R2/R3 = params }
-asm
-  // range check
-  cmp    r0, #0
-  movlt  r0, #ERROR_NOT_ASSIGNED
-  movlt  pc, lr
-  cmp    r0, #RPI3_SWI_COUNT
-  movge  r0, #ERROR_NOT_ASSIGNED
-  movge  pc, lr
-  // within range
-  stmia  sp!, {r4-r12,r14}  // save context
-  mov    r4, SWIHandlers
-  add    r4, r4, r0, lsl #2 // assume 4 byte addresses
-  ldr    r4, [r4]
-  bl     r4
-  ldmia  sp!, {r4-r12,r14}^  // restore context
-  mov pc, lr
-end;
+
 {==============================================================================}
 function TestSWIHandler(Number:LongWord;Param1,Param2,Param3:PtrUInt): PtrUInt;
 begin
@@ -265,6 +270,7 @@ begin
  callResult := SWICall(UNUSED_SWI_NUMBER,1,2,3);
  LoggingOutput('Default SWI returned' + IntToStr(callResult));
  LoggingOutput('  ');
+ { Test SWI < 0 and > Max }
  LoggingOutput('That''s all folks!!');
 end;
 
