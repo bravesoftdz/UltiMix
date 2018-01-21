@@ -193,13 +193,13 @@ asm
   cmp    r0, #RPI3_SWI_COUNT
   bge    .LfailedRangeCheck
   // within range
-  stmia  sp!, {r4-r12,r14}  // save context
+  stmfd  sp!, {r4-r12,r14}  // save context
   mov    r4, SWIHandlers
   // index assumes 4 byte addresses
   add    r4, r4, r0, lsl #2
   ldr    r4, [r4]
   bl     r4
-  ldmia  sp!, {r4-r12,r14}^  // restore context
+  ldmfd  sp!, {r4-r12,r14}  // restore context
   mov pc, lr
 .LfailedRangeCheck:
   mov  r0, #ERROR_NOT_ASSIGNED
