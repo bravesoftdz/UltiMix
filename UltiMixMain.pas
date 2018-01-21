@@ -180,7 +180,16 @@ implementation
 function DefaultSWIHandler(Number:LongWord;Param1,Param2,Param3:PtrUInt): PtrUInt; assembler; nostackframe;
 asm
    mov r0, #ERROR_INVALID_FUNCTION
-   mov pc, lr
+// mov pc, lr
+end;
+
+function GetSWIHandle(Number:LongWord): PSWIHandler;
+begin
+  if (Number >= RPI3_SWI_COUNT)
+   then
+     result := @DefaultSWIHandler
+   else
+     result := SWIHandlers[Number];
 end;
 
 
@@ -193,26 +202,33 @@ asm
   cmp    r0, #RPI3_SWI_COUNT
   bge    .LfailedRangeCheck
   // within range
-  stmfd  sp!, {r4-r12,r14}  // save context
-  mov    r4, SWIHandlers
+  stmfd  sp!, {r4-r12,lr}  // save context
+  ldr    r4, .LSWIHandlers
+  ldr    r4, [r4]
   // index assumes 4 byte addresses
   add    r4, r4, r0, lsl #2
   ldr    r4, [r4]
   bl     r4
-  ldmfd  sp!, {r4-r12,r14}  // restore context
-  mov pc, lr
+  ldmfd  sp!, {r4-r12,pc}  // restore context
+//  mov pc, lr
 .LfailedRangeCheck:
-  mov  r0, #ERROR_NOT_ASSIGNED
-  mov  pc, lr
+  ldr  r0, #ERROR_NOT_ASSIGNED
+//  bx   lr
+.LSWIHandlers:
+  .long SWIHandlers
 end;
 
 
 procedure SetSWIVector; assembler; nostackframe;
 asm
     mov r0, #RPI3_VECTOR_TABLE_BASE
-    add r0, r0, #VECTOR_TABLE_ENTRY_ARM_SWI
-    mov r1, HandleSWI
+    add r0, r0, #8 // #VECTOR_TABLE_ENTRY_ARM_SWI, lsl #2
+    ldr r1, .LHandleSWI
+    ldr r1, [r1]
     str r1, [r0]
+    bx  lr
+.LHandleSWI:
+   .long HandleSWI
 end;
 
 
