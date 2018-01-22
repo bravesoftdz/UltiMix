@@ -1,0 +1,11 @@
+*.bin
+*.elf
+*.img
+*.log
+*.o
+*.ppu
+*.s
+lib/
+link.res
+ppas.bat
+ppas.sh
