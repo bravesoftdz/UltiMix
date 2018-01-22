@@ -208,11 +208,11 @@ asm
   // index assumes 4 byte addresses
   add    r4, r4, r0, lsl #2
   ldr    r4, [r4]
-  bl     r4
+  blx    r4
   ldmfd  sp!, {r4-r12,pc}  // restore context
 //  mov pc, lr
 .LfailedRangeCheck:
-  ldr  r0, #ERROR_NOT_ASSIGNED
+  ldr  r0, =ERROR_NOT_ASSIGNED
 //  bx   lr
 .LSWIHandlers:
   .long SWIHandlers
